@@ -107,7 +107,9 @@ __pycache__
 deps
 docs
 .tags*
-.python-version
+*.m3u8
+*.ts
+*.mp4
 .README.md
 .pypirc
 *.ts
