@@ -7,7 +7,6 @@ import os
 import shutil
 from threading import Thread, Lock
 import urllib3
-# to surpress InsecureRequestWarning
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -34,19 +33,17 @@ class M3u8DownloaderMaxTryException(Exception):
 
 
 def download_file(fileurl, headers, filename, check=None, verify=True):
-    with requests.get(fileurl, headers=headers, stream=True, verify=verify) as r:  # noqa
-        if check and not check(r):
-            print('Not a valid ts file')
-            print(r.content)
-            raise DownloadFileNotValidException()
-        with open(filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-
+    r=requests.get(fileurl, headers=headers, stream=True, verify=verify)
+    if check and not check(r):
+        print('Not a valid ts file')
+        print(r.content)
+        raise DownloadFileNotValidException()
+    with open(filename, 'wb') as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
 
 class M3u8File:
-
     def __init__(self, fileurl, headers, output_file, sslverify, finished=False):  # noqa
         self.fileurl = fileurl
         self.headers = headers
@@ -103,7 +100,7 @@ class TsFile():
 
 
 class M3u8Context(object):
-    rendering_attrs = ['file_url', 'base_url', 'referer', 'threads', 'output_file', 'sslverify',
+    rendering_attrs = ['file_url', 'base_url', 'headers' 'referer', 'threads', 'output_file', 'sslverify',
                        'get_m3u8file_complete', 'downloaded_ts_urls']
 
     def __init__(self, **kwargs):
@@ -142,12 +139,19 @@ class M3u8Downloader:
 
         self.fileurl = context['file_url']
         self.base_url = context['base_url']
-        self.referer = context['referer']
+        # self.headers:[str] = context['headers']
+        self.headers:[str]={}
         self.threads = context['threads']
         self.output_file = context['output_file']
         self.sslverify = context['sslverify']
 
-        self.headers = {'Referer': self.referer}
+        #self.headers = {'Referer': self.referer}
+        for h in context['headers']:
+            head:str=h
+            idx=head.index(':')
+            n=head[:idx].strip()
+            v=head[idx+1:].strip()
+            self.headers[n]=v
         self.tsfiles = []
 
         self.ts_index = 0
@@ -248,5 +252,6 @@ class M3u8Downloader:
     @monitor_proc('clean up')
     def cleanup(self):
         # clean
+        pass
         shutil.rmtree(self.ts_tmpfolder)
         os.unlink(self.m3u8_filename)
