@@ -1,5 +1,7 @@
-# -*- coding: utf-8 -*-
-
+#!/usr/bin/python3
+"""Console script for M3u8Downloader."""
+import sys
+import argparse
 import m3u8
 import requests
 from urllib.parse import urlparse, urljoin
@@ -8,7 +10,6 @@ import shutil
 from threading import Thread, Lock
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 
 def monitor_proc(proc_name):
     def monitor(func):
@@ -144,9 +145,8 @@ class M3u8Downloader:
         self.threads = context['threads']
         self.output_file = context['output_file']
         self.sslverify = context['sslverify']
-
         #self.headers = {'Referer': self.referer}
-        for h in context['headers']:
+        for h in self.context['headers']:
             head:str=h
             idx=head.index(':')
             n=head[:idx].strip()
@@ -255,3 +255,96 @@ class M3u8Downloader:
         pass
         shutil.rmtree(self.ts_tmpfolder)
         os.unlink(self.m3u8_filename)
+
+def _show_progress_bar(downloaded, total):
+    """
+    progress bar for command line
+    """
+    htlen = 33
+    percent = downloaded / total * 100
+    # 20 hashtag(#)
+    hashtags = int(percent / 100 * htlen)
+    print('|'
+          + '#' * hashtags + ' ' * (htlen - hashtags) +
+          '|' +
+          '  {0}/{1} '.format(downloaded, total) +
+          ' {:.1f}'.format(percent).ljust(5) + ' %', end='\r', flush=True)  # noqa
+
+
+def execute(context):
+    """
+    download ts file by restore object (dict)
+    """
+    m = M3u8Downloader(context, on_progress_callback=_show_progress_bar)
+
+    # def signal_handler(sig, frame):
+    #     print('\nCaptured Ctrl + C ! Saving Current Session ...')
+    #     restore.dump(context)
+    #     sys.exit(1)
+
+    # signal.signal(signal.SIGINT, signal_handler)
+
+    m.get_m3u8file()
+    print('m3u8: Saving as ' + M3u8Downloader.m3u8_filename)
+
+    m.parse_m3u8file()
+    m.get_tsfiles()
+    if m.is_task_success:
+        m.merge()
+
+    # clean everything Downloader generates
+    m.cleanup()
+    # clean restore
+    # restore.cleanup()
+
+    if not m.is_task_success:
+        print('Download Failed')
+        print('Try it again with options -H and --url')
+
+if __name__ == "__main__":
+    """
+    deal with the console
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("-H", "--headers", action='append',
+                        help="请求投可以传多个值，用逗号隔开")
+    parser.add_argument("-u", "--url", default='',
+                        help="下载的基本url，默认和m3u8文件url相同，一般不需要传")
+    parser.add_argument("-t", "--threads", type=int, default=10,
+                        help="并发下载线程数")
+    parser.add_argument("--insecure", action="store_true",
+                        help="忽略检查SSL证书")
+    parser.add_argument("--certfile", default='',
+                        help="如果不忽略检查ssl证书，这里需要传ca证书或者包含ca证书的目录")  # noqa
+    parser.add_argument("fileurl", nargs="?",
+                        help="url [e.g.:http://example.com/xx.m3u8]")
+    parser.add_argument("-o", "--output", nargs="?", default='output.mp4', help="保存的视频文件名 [默认: example.mp4]")  # noqa
+    # parser.add_argument("--restore", action="store_true",
+    #                     help="restore from last session")
+    # parser.add_argument("--range", help="ts range")
+    # parser.add_argument("--ts", help="ts link")
+
+    args = parser.parse_args()
+
+    if not args.url:
+        t=urlparse(args.fileurl)
+        args.url=f'{t.scheme}://{t.hostname}'+(":"+t.port if t.port else "")
+    # restore = PickleContextRestore()
+
+    if not args.fileurl or not args.output:
+        print('error: [fileurl] and [output] are necessary if not in restore\n')  # noqa
+        parser.print_help()
+        sys.exit(0)
+    context = M3u8Context(file_url=args.fileurl, headers=args.headers,
+                          threads=args.threads, output_file=args.output,
+                          get_m3u8file_complete=False, downloaded_ts_urls=[])
+    context["base_url"] = args.url \
+        if args.url.endswith('/') else args.url + '/'  # noqa
+    if args.insecure:
+        context['sslverify'] = False
+    if not args.insecure:
+        if args.certfile == '':
+            context['sslverify'] = True
+        else:
+            context['sslverify'] = args.certfile
+    execute(context)
