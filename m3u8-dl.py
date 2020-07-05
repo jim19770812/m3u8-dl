@@ -319,10 +319,6 @@ if __name__ == "__main__":
     parser.add_argument("fileurl", nargs="?",
                         help="url [e.g.:http://example.com/xx.m3u8]")
     parser.add_argument("-o", "--output", nargs="?", default='output.mp4', help="保存的视频文件名 [默认: example.mp4]")  # noqa
-    # parser.add_argument("--restore", action="store_true",
-    #                     help="restore from last session")
-    # parser.add_argument("--range", help="ts range")
-    # parser.add_argument("--ts", help="ts link")
 
     args = parser.parse_args()
 
